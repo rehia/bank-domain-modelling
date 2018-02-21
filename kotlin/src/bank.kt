@@ -2,7 +2,7 @@
 fun main(args: Array<String>) {
     val account = CheckingAccount("1234", Amount(20.0f), listOf(), Customer("toto"))
     val (debitedAccount, transaction) =
-            withdraw(Amount(8.0f), WithdrawableAccount.WithdrawableCheckingAccount(account))
+            WithdrawableAccount.withdraw(Amount(8.0f), WithdrawableAccount.WithdrawableCheckingAccount(account))
     println("transaction amount ${transaction.amount}")
 
     val balance = when(debitedAccount) {
@@ -17,32 +17,34 @@ fun main(args: Array<String>) {
     println("account last transaction $lastTransaction")
 }
 
-fun withdraw(amount: Amount, accountToDebit: WithdrawableAccount): WithdrawResult {
-    val debitedAccount: WithdrawableAccount = when(accountToDebit) {
-        is WithdrawableAccount.WithdrawableCheckingAccount -> {
-            val account = debitCheckingAccount(accountToDebit.account, amount)
-            WithdrawableAccount.WithdrawableCheckingAccount(account)
-        }
-        is WithdrawableAccount.WithdrawableTradingAccount -> accountToDebit
-    }
-    return WithdrawResult(debitedAccount, Transaction.Debit(amount))
-}
-
 data class Amount(val amount: Float)
 
 sealed class WithdrawableAccount {
     data class WithdrawableCheckingAccount(val account: CheckingAccount): WithdrawableAccount()
     data class WithdrawableTradingAccount(val account: TradingAccount): WithdrawableAccount()
+
+    companion object {
+        fun withdraw(amount: Amount, accountToDebit: WithdrawableAccount): WithdrawResult {
+            val debitedAccount: WithdrawableAccount = when(accountToDebit) {
+                is WithdrawableAccount.WithdrawableCheckingAccount -> {
+                    val account = debitCheckingAccount(accountToDebit.account, amount)
+                    WithdrawableAccount.WithdrawableCheckingAccount(account)
+                }
+                is WithdrawableAccount.WithdrawableTradingAccount -> accountToDebit
+            }
+            return WithdrawResult(debitedAccount, Transaction.Debit(amount))
+        }
+
+        private fun debitCheckingAccount(account: CheckingAccount, amount: Amount) =
+                CheckingAccount(
+                        account.iban,
+                        Amount(account.balance.amount - amount.amount),
+                        account.history.plus(Transaction.Debit(amount)),
+                        account.owner)
+    }
 }
 
 data class CheckingAccount(val iban: String, val balance: Amount, val history: History, val owner: Customer)
-
-fun debitCheckingAccount(account: CheckingAccount, amount: Amount) =
-        CheckingAccount(
-                account.iban,
-                Amount(account.balance.amount - amount.amount),
-                account.history.plus(Transaction.Debit(amount)),
-                account.owner)
 
 data class TradingAccount(val solde: Amount, val history: History, val owner: Customer)
 
